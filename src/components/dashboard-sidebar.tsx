@@ -8,6 +8,7 @@ import {
   DatabaseIcon,
   ShieldCheckIcon,
   CommandIcon,
+  SignOutIcon,
 } from "@phosphor-icons/react";
 import {
   Sidebar,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { authClient } from "@/lib/auth-client";
 
 const data = {
   navMain: [
@@ -102,7 +104,21 @@ export function DashboardSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>{/* Add User Profile here later */}</SidebarFooter>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={async () => {
+                await authClient.signOut();
+                window.location.href = "/login";
+              }}
+            >
+              <SignOutIcon />
+              <span>Logout</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

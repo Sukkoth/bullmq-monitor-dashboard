@@ -61,7 +61,9 @@ export default function Home() {
             visibility into their Redis queues.
           </p>
           <div className="flex gap-4 justify-center">
-            <Button size="lg">View Dashboard</Button>
+            <Button size="lg" asChild>
+              <Link href="/dashboard">View Dashboard</Link>
+            </Button>
             <Button variant="outline" size="lg">
               Read the Docs
             </Button>
