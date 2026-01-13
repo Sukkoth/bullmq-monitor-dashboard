@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
 });
@@ -20,9 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${outfit.variable} antialiased`}
-      >
+      <body className={`${inter.variable} antialiased font-sans`}>
         {children}
       </body>
     </html>
