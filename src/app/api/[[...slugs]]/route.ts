@@ -4,6 +4,7 @@ import Redis from "ioredis";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { getQueueInstance, getJobCounts, getJobs, getJobById, retryJob, removeJob } from "@/lib/queue-helper";
 
 export const app = new Elysia({ prefix: "/api" })
   .get("/", () => {
@@ -330,6 +331,211 @@ export const app = new Elysia({ prefix: "/api" })
     });
 
     return { success: true };
+  })
+  .get("/queue/:id/counts", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      const counts = await getJobCounts(queue);
+      return { success: true, data: counts };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to fetch job counts" };
+    }
+  })
+  .get("/queue/:id/jobs/:status", async ({ params: { id, status }, query, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const start = parseInt(query.start as string || "0");
+    const end = parseInt(query.end as string || "50");
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      const jobs = await getJobs(queue, status, start, end);
+
+      // Serialize jobs to plain objects
+      const serializedJobs = await Promise.all(
+        jobs.map(async (job) => ({
+          id: job.id,
+          name: job.name,
+          data: job.data,
+          progress: job.progress,
+          timestamp: job.timestamp,
+          processedOn: job.processedOn,
+          finishedOn: job.finishedOn,
+          failedReason: job.failedReason,
+          stacktrace: job.stacktrace,
+          returnvalue: job.returnvalue,
+          attemptsMade: job.attemptsMade,
+          delay: job.delay,
+          opts: job.opts,
+        }))
+      );
+
+      return { success: true, data: serializedJobs };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to fetch jobs" };
+    }
+  })
+  .get("/queue/:id/jobs/:status/:jobId", async ({ params: { id, status, jobId }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      const job = await getJobById(queue, jobId);
+
+      if (!job) {
+        return { success: false, message: "Job not found" };
+      }
+
+      // Serialize job to plain object
+      const serializedJob = {
+        id: job.id,
+        name: job.name,
+        data: job.data,
+        progress: job.progress,
+        timestamp: job.timestamp,
+        processedOn: job.processedOn,
+        finishedOn: job.finishedOn,
+        failedReason: job.failedReason,
+        stacktrace: job.stacktrace,
+        returnvalue: job.returnvalue,
+        attemptsMade: job.attemptsMade,
+        delay: job.delay,
+        opts: job.opts,
+      };
+
+      return { success: true, data: serializedJob };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to fetch job" };
+    }
+  })
+  .post("/queue/:id/jobs/:jobId/retry", async ({ params: { id, jobId }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await retryJob(queue, jobId);
+      return { success: true, message: "Job retried successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to retry job" };
+    }
+  })
+  .delete("/queue/:id/jobs/:jobId", async ({ params: { id, jobId }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await removeJob(queue, jobId);
+      return { success: true, message: "Job removed successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to remove job" };
+    }
   })
   .get("/redis/status/:id", async ({ params: { id }, request }) => {
     const session = await auth.api.getSession({

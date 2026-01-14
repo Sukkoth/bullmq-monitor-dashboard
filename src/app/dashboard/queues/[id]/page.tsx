@@ -4,6 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   ArrowLeftIcon, 
   SpinnerIcon, 
@@ -14,7 +29,9 @@ import {
   PauseIcon,
   ListBulletsIcon,
   ArrowsClockwiseIcon,
-  WarningIcon
+  WarningIcon,
+  TrashIcon,
+  ArrowClockwiseIcon
 } from "@phosphor-icons/react";
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -39,7 +56,7 @@ interface Queue {
   updatedAt: string;
 }
 
-interface JobStatusCounts {
+interface JobCounts {
   latest: number;
   active: number;
   waiting: number;
@@ -49,6 +66,22 @@ interface JobStatusCounts {
   failed: number;
   delayed: number;
   paused: number;
+}
+
+interface Job {
+  id: string;
+  name: string;
+  data: any;
+  progress: number;
+  timestamp: number;
+  processedOn?: number;
+  finishedOn?: number;
+  failedReason?: string;
+  stacktrace?: string[];
+  returnvalue?: any;
+  attemptsMade: number;
+  delay?: number;
+  opts: any;
 }
 
 const JOB_STATUSES = [
@@ -64,14 +97,13 @@ const JOB_STATUSES = [
 ] as const;
 
 export default function QueueDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  // Unwrap the params Promise using React's use() hook
   const { id } = use(params);
   
   const router = useRouter();
   const [queue, setQueue] = useState<Queue | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("latest");
-  const [jobCounts, setJobCounts] = useState<JobStatusCounts>({
+  const [jobCounts, setJobCounts] = useState<JobCounts>({
     latest: 0,
     active: 0,
     waiting: 0,
@@ -82,21 +114,25 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
     delayed: 0,
     paused: 0,
   });
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [pollingInterval, setPollingInterval] = useState<number>(0);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const fetchQueue = useCallback(async () => {
-    setIsLoading(true);
     try {
       const res = await fetch("/api/queue");
       const data = await res.json();
-      console.log("Fetched queues:", data);
-      console.log("Looking for queue with id:", id);
       const foundQueue = data.find((q: Queue) => q.id === id);
-      console.log("Found queue:", foundQueue);
       if (foundQueue) {
         setQueue(foundQueue);
+        // Set initial polling interval from queue config if not already set
+        if (pollingInterval === 0 && foundQueue.pollingDuration > 0) {
+          setPollingInterval(foundQueue.pollingDuration);
+        }
       } else {
-        console.log("Queue not found, redirecting...");
-        // Queue not found, redirect back
         router.push("/dashboard/queues");
       }
     } catch (error) {
@@ -104,27 +140,124 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setIsLoading(false);
     }
-  }, [id, router]);
+  }, [id, router, pollingInterval]);
+
+  const fetchJobCounts = useCallback(async () => {
+    if (!queue) return;
+    
+    try {
+      const res = await fetch(`/api/queue/${id}/counts`);
+      const result = await res.json();
+      if (result.success) {
+        setJobCounts(result.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch job counts:", error);
+    }
+  }, [id, queue]);
+
+  const fetchJobs = useCallback(async (status: string, showLoading = false) => {
+    if (!queue) return;
+    
+    if (showLoading) setIsLoadingJobs(true);
+    try {
+      const res = await fetch(`/api/queue/${id}/jobs/${status}?start=0&end=50`);
+      const result = await res.json();
+      if (result.success) {
+        setJobs(result.data);
+      } else {
+        setJobs([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch jobs:", error);
+      setJobs([]);
+    } finally {
+      if (showLoading) setIsLoadingJobs(false);
+    }
+  }, [id, queue]);
+
+  const handleRetryJob = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/queue/${id}/jobs/${jobId}/retry`, {
+        method: "POST",
+      });
+      const result = await res.json();
+      if (result.success) {
+        // Refresh jobs and counts
+        fetchJobs(activeTab);
+        fetchJobCounts();
+      }
+    } catch (error) {
+      console.error("Failed to retry job:", error);
+    }
+  };
+
+  const handleRemoveJob = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/queue/${id}/jobs/${jobId}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (result.success) {
+        // Refresh jobs and counts
+        fetchJobs(activeTab);
+        fetchJobCounts();
+      }
+    } catch (error) {
+      console.error("Failed to remove job:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      fetchJobCounts(),
+      fetchJobs(activeTab),
+    ]);
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     fetchQueue();
   }, [fetchQueue]);
 
-  // Mock job counts - will be replaced with actual API calls
   useEffect(() => {
-    // Simulate fetching job counts
-    setJobCounts({
-      latest: 42,
-      active: 5,
-      waiting: 12,
-      waitingChildren: 3,
-      prioritized: 2,
-      completed: 156,
-      failed: 8,
-      delayed: 4,
-      paused: 0,
-    });
-  }, []);
+    if (queue) {
+      fetchJobCounts();
+    }
+  }, [queue, fetchJobCounts]);
+
+  useEffect(() => {
+    if (queue) {
+      // Only show loading on first load or tab change, not background refreshes
+      fetchJobs(activeTab, true);
+    }
+  }, [activeTab, queue]); // Removed fetchJobs from dependency to avoid loop if it changes
+
+  // Auto-refresh based on polling duration
+  useEffect(() => {
+    if (!queue || pollingInterval === 0) return;
+
+    const interval = setInterval(() => {
+      fetchJobCounts();
+      fetchJobs(activeTab, false); // Don't show loading state
+    }, pollingInterval);
+
+    return () => clearInterval(interval);
+  }, [queue, activeTab, pollingInterval, fetchJobCounts]); // Removed fetchJobs
+
+  const formatTimestamp = (timestamp?: number) => {
+    if (!timestamp) return "N/A";
+    return new Date(timestamp).toLocaleString();
+  };
+
+  const formatDuration = (start?: number, end?: number) => {
+    if (!start || !end) return "N/A";
+    const duration = end - start;
+    if (duration < 1000) return `${duration}ms`;
+    if (duration < 60000) return `${(duration / 1000).toFixed(1)}s`;
+    return `${(duration / 60000).toFixed(1)}m`;
+  };
 
   if (isLoading) {
     return (
@@ -185,17 +318,41 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
             )}
           </div>
         </div>
-        <Button variant="outline" size="sm">
-          <ArrowsClockwiseIcon className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 h-7 bg-muted/50 rounded-none border border-border/50">
+            <div className="flex items-center gap-1.5 mr-1">
+              <div className={`h-1.5 w-1.5 rounded-full ${pollingInterval > 0 ? "bg-green-500 animate-pulse" : "bg-muted-foreground/30"}`} />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Auto-Sync</span>
+            </div>
+            <Select 
+              value={pollingInterval.toString()} 
+              onValueChange={(v) => setPollingInterval(Number(v))}
+            >
+              <SelectTrigger size="sm" className="h-5 w-[65px] text-[10px] border-none bg-transparent hover:bg-muted focus:ring-0 px-1">
+                <SelectValue placeholder="Interval" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Off</SelectItem>
+                <SelectItem value="5000">5s</SelectItem>
+                <SelectItem value="10000">10s</SelectItem>
+                <SelectItem value="30000">30s</SelectItem>
+                <SelectItem value="60000">1m</SelectItem>
+                <SelectItem value="300000">5m</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+            <ArrowsClockwiseIcon className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Job Status Overview Cards */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
         {JOB_STATUSES.map((status) => {
           const Icon = status.icon;
-          const count = jobCounts[status.key as keyof JobStatusCounts];
+          const count = jobCounts[status.key as keyof JobCounts];
           
           return (
             <Card 
@@ -245,12 +402,86 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Job list will go here */}
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <ListBulletsIcon className="h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-sm">No {status.label.toLowerCase()} jobs found</p>
-                  <p className="text-xs mt-1">Jobs will appear here when available</p>
-                </div>
+                {isLoadingJobs ? (
+                  <div className="flex items-center justify-center py-12">
+                    <SpinnerIcon className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : jobs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <ListBulletsIcon className="h-12 w-12 mb-4 opacity-50" />
+                    <p className="text-sm">No {status.label.toLowerCase()} jobs found</p>
+                    <p className="text-xs mt-1">Jobs will appear here when available</p>
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[100px]">Job ID</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Created</TableHead>
+                          {status.key === "active" && <TableHead>Progress</TableHead>}
+                          {status.key === "completed" && <TableHead>Duration</TableHead>}
+                          {status.key === "failed" && <TableHead>Reason</TableHead>}
+                          {status.key === "delayed" && <TableHead>Delay</TableHead>}
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {jobs.map((job) => (
+                          <TableRow key={job.id}>
+                            <TableCell className="font-mono text-xs">{job.id}</TableCell>
+                            <TableCell className="font-medium">{job.name}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {formatTimestamp(job.timestamp)}
+                            </TableCell>
+                            {status.key === "active" && (
+                              <TableCell>
+                                <Badge variant="outline">{job.progress}%</Badge>
+                              </TableCell>
+                            )}
+                            {status.key === "completed" && (
+                              <TableCell className="text-xs">
+                                {formatDuration(job.processedOn, job.finishedOn)}
+                              </TableCell>
+                            )}
+                            {status.key === "failed" && (
+                              <TableCell className="text-xs text-red-500 max-w-[200px] truncate">
+                                {job.failedReason || "Unknown error"}
+                              </TableCell>
+                            )}
+                            {status.key === "delayed" && (
+                              <TableCell className="text-xs">
+                                {job.delay ? `${job.delay}ms` : "N/A"}
+                              </TableCell>
+                            )}
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                {status.key === "failed" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRetryJob(job.id)}
+                                  >
+                                    <ArrowClockwiseIcon className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveJob(job.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
