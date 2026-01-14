@@ -186,6 +186,151 @@ export const app = new Elysia({ prefix: "/api" })
 
     return { success: true };
   })
+  .get("/queue", async ({ request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const queues = await prisma.queue.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return queues;
+  })
+  .post("/queue", async ({ body, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const { name, displayName, note, tags, pollingDuration, redisConfigId } = body;
+
+    // Verify the redis config belongs to the user
+    const redisConfig = await prisma.redisConfig.findUnique({
+      where: {
+        id: redisConfigId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!redisConfig) {
+      return { success: false, message: "Redis configuration not found" };
+    }
+
+    const queue = await prisma.queue.create({
+      data: {
+        name,
+        displayName,
+        note: note || null,
+        tags: JSON.stringify(tags || []),
+        pollingDuration: pollingDuration || 0,
+        redisConfigId,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    return { success: true, data: queue };
+  }, {
+    body: t.Object({
+      name: t.String({ minLength: 1, maxLength: 100 }),
+      displayName: t.String({ minLength: 1, maxLength: 100 }),
+      note: t.Optional(t.String({ maxLength: 500 })),
+      tags: t.Optional(t.Array(t.String())),
+      pollingDuration: t.Optional(t.Number({ minimum: 0 })),
+      redisConfigId: t.String(),
+    }),
+  })
+  .patch("/queue/:id", async ({ params: { id }, body, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const { name, displayName, note, tags, pollingDuration, redisConfigId } = body;
+
+    // If redisConfigId is being updated, verify it belongs to the user
+    if (redisConfigId) {
+      const redisConfig = await prisma.redisConfig.findUnique({
+        where: {
+          id: redisConfigId,
+          userId: session.user.id,
+        },
+      });
+
+      if (!redisConfig) {
+        return { success: false, message: "Redis configuration not found" };
+      }
+    }
+
+    const dataToUpdate: any = {};
+    if (name !== undefined) dataToUpdate.name = name;
+    if (displayName !== undefined) dataToUpdate.displayName = displayName;
+    if (note !== undefined) dataToUpdate.note = note || null;
+    if (tags !== undefined) dataToUpdate.tags = JSON.stringify(tags);
+    if (pollingDuration !== undefined) dataToUpdate.pollingDuration = pollingDuration;
+    if (redisConfigId !== undefined) dataToUpdate.redisConfigId = redisConfigId;
+
+    const queue = await prisma.queue.update({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      data: dataToUpdate,
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    return { success: true, data: queue };
+  }, {
+    body: t.Object({
+      name: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
+      displayName: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
+      note: t.Optional(t.String({ maxLength: 500 })),
+      tags: t.Optional(t.Array(t.String())),
+      pollingDuration: t.Optional(t.Number({ minimum: 0 })),
+      redisConfigId: t.Optional(t.String()),
+    }),
+  })
+  .delete("/queue/:id", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    await prisma.queue.delete({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+    });
+
+    return { success: true };
+  })
   .get("/redis/status/:id", async ({ params: { id }, request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,

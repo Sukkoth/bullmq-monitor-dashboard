@@ -52,6 +52,7 @@ model user {
   account       account[]
   session       session[]
   redisConfigs  RedisConfig[]
+  queues        Queue[]
 }
 
 model verification {
@@ -77,6 +78,25 @@ model RedisConfig {
   updatedAt DateTime @updatedAt
   userId    String
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  queues    Queue[]
 
   @@index([userId])
+}
+
+model Queue {
+  id              String      @id @default(cuid())
+  name            String      // Queue name (internal identifier)
+  displayName     String      // Human-readable display name
+  note            String?     // Optional description
+  tags            String      @default("[]") // JSON array of tags
+  pollingDuration Int         @default(0) // Polling interval in ms (0 = off)
+  redisConfigId   String
+  redisConfig     RedisConfig @relation(fields: [redisConfigId], references: [id], onDelete: Cascade)
+  userId          String
+  user            user        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([redisConfigId])
 }
