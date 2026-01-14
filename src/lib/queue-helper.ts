@@ -244,6 +244,27 @@ export async function removeJob(queue: Queue, jobId: string): Promise<boolean> {
 }
 
 /**
+ * Get job logs
+ * @param queue - BullMQ Queue instance
+ * @param jobId - Job ID
+ * @returns Array of log strings
+ */
+export async function getJobLogs(queue: Queue, jobId: string): Promise<string[]> {
+    try {
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            throw new Error('Job not found');
+        }
+
+        const logs = await queue.getJobLogs(jobId);
+        return logs.logs;
+    } catch (error) {
+        console.error(`Error fetching logs for job ${jobId}:`, error);
+        throw error;
+    }
+}
+
+/**
  * Clean up queue cache (call when needed)
  */
 export function clearQueueCache() {

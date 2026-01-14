@@ -4,14 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { JobCard } from "@/components/queue/job-card";
 import {
   Select,
   SelectContent,
@@ -30,8 +23,6 @@ import {
   ListBulletsIcon,
   ArrowsClockwiseIcon,
   WarningIcon,
-  TrashIcon,
-  ArrowClockwiseIcon
 } from "@phosphor-icons/react";
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -178,7 +169,7 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleRetryJob = async (jobId: string) => {
     try {
-      const res = await fetch(`/api/queue/${id}/jobs/${jobId}/retry`, {
+      const res = await fetch(`/api/queue/${id}/job/${jobId}/retry`, {
         method: "POST",
       });
       const result = await res.json();
@@ -194,7 +185,7 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleRemoveJob = async (jobId: string) => {
     try {
-      const res = await fetch(`/api/queue/${id}/jobs/${jobId}`, {
+      const res = await fetch(`/api/queue/${id}/job/${jobId}`, {
         method: "DELETE",
       });
       const result = await res.json();
@@ -413,73 +404,17 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
                     <p className="text-xs mt-1">Jobs will appear here when available</p>
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[100px]">Job ID</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Created</TableHead>
-                          {status.key === "active" && <TableHead>Progress</TableHead>}
-                          {status.key === "completed" && <TableHead>Duration</TableHead>}
-                          {status.key === "failed" && <TableHead>Reason</TableHead>}
-                          {status.key === "delayed" && <TableHead>Delay</TableHead>}
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {jobs.map((job) => (
-                          <TableRow key={job.id}>
-                            <TableCell className="font-mono text-xs">{job.id}</TableCell>
-                            <TableCell className="font-medium">{job.name}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatTimestamp(job.timestamp)}
-                            </TableCell>
-                            {status.key === "active" && (
-                              <TableCell>
-                                <Badge variant="outline">{job.progress}%</Badge>
-                              </TableCell>
-                            )}
-                            {status.key === "completed" && (
-                              <TableCell className="text-xs">
-                                {formatDuration(job.processedOn, job.finishedOn)}
-                              </TableCell>
-                            )}
-                            {status.key === "failed" && (
-                              <TableCell className="text-xs text-red-500 max-w-[200px] truncate">
-                                {job.failedReason || "Unknown error"}
-                              </TableCell>
-                            )}
-                            {status.key === "delayed" && (
-                              <TableCell className="text-xs">
-                                {job.delay ? `${job.delay}ms` : "N/A"}
-                              </TableCell>
-                            )}
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                {status.key === "failed" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRetryJob(job.id)}
-                                  >
-                                    <ArrowClockwiseIcon className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveJob(job.id)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                  <div className="space-y-4">
+                    {jobs.map((job) => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        queueId={id}
+                        status={status.key}
+                        onRetry={handleRetryJob}
+                        onRemove={handleRemoveJob}
+                      />
+                    ))}
                   </div>
                 )}
               </CardContent>

@@ -4,7 +4,7 @@ import Redis from "ioredis";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getQueueInstance, getJobCounts, getJobs, getJobById, retryJob, removeJob } from "@/lib/queue-helper";
+import { getQueueInstance, getJobCounts, getJobs, getJobById, retryJob, removeJob, getJobLogs } from "@/lib/queue-helper";
 
 export const app = new Elysia({ prefix: "/api" })
   .get("/", () => {
@@ -419,7 +419,7 @@ export const app = new Elysia({ prefix: "/api" })
       return { success: false, message: error.message || "Failed to fetch jobs" };
     }
   })
-  .get("/queue/:id/jobs/:status/:jobId", async ({ params: { id, status, jobId }, request }) => {
+  .get("/queue/:id/job/:jobId", async ({ params: { id, jobId }, request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,
     });
@@ -473,7 +473,7 @@ export const app = new Elysia({ prefix: "/api" })
       return { success: false, message: error.message || "Failed to fetch job" };
     }
   })
-  .post("/queue/:id/jobs/:jobId/retry", async ({ params: { id, jobId }, request }) => {
+  .post("/queue/:id/job/:jobId/retry", async ({ params: { id, jobId }, request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,
     });
@@ -505,7 +505,39 @@ export const app = new Elysia({ prefix: "/api" })
       return { success: false, message: error.message || "Failed to retry job" };
     }
   })
-  .delete("/queue/:id/jobs/:jobId", async ({ params: { id, jobId }, request }) => {
+  .get("/queue/:id/job/:jobId/logs", async ({ params: { id, jobId }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      const logs = await getJobLogs(queue, jobId);
+      return { success: true, data: logs };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to fetch job logs" };
+    }
+  })
+  .delete("/queue/:id/job/:jobId", async ({ params: { id, jobId }, request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,
     });
