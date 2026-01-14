@@ -21,6 +21,7 @@ interface JobCounts {
     failed: number;
     delayed: number;
     paused: number;
+    isPaused: boolean;
 }
 
 // Cache for Queue instances to avoid creating multiple connections
@@ -100,6 +101,7 @@ export async function getJobCounts(queue: Queue): Promise<JobCounts> {
             failed: failedCount,
             delayed: delayedCount,
             paused: isPaused ? pausedCount : 0,
+            isPaused,
         };
     } catch (error) {
         console.error('Error fetching job counts:', error);
@@ -264,8 +266,126 @@ export async function getJobLogs(queue: Queue, jobId: string): Promise<string[]>
     }
 }
 
+
+/**
+ * Promote a delayed job
+ * @param queue - BullMQ Queue instance
+ * @param jobId - Job ID
+ * @returns Success status
+ */
+export async function promoteJob(queue: Queue, jobId: string): Promise<boolean> {
+    try {
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            throw new Error('Job not found');
+        }
+
+        await job.promote();
+        return true;
+    } catch (error) {
+        console.error(`Error promoting job ${jobId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Pause the queue
+ * @param queue - BullMQ Queue instance
+ * @returns Success status
+ */
+export async function pauseQueue(queue: Queue): Promise<boolean> {
+    try {
+        await queue.pause();
+        return true;
+    } catch (error) {
+        console.error('Error pausing queue:', error);
+        throw error;
+    }
+}
+
+/**
+ * Resume the queue
+ * @param queue - BullMQ Queue instance
+ * @returns Success status
+ */
+export async function resumeQueue(queue: Queue): Promise<boolean> {
+    try {
+        await queue.resume();
+        return true;
+    } catch (error) {
+        console.error('Error resuming queue:', error);
+        throw error;
+    }
+}
+
+/**
+ * Empty the queue (remove all jobs)
+ * @param queue - BullMQ Queue instance
+ * @returns Success status
+ */
+export async function emptyQueue(queue: Queue): Promise<boolean> {
+    try {
+        await queue.drain();
+        return true;
+    } catch (error) {
+        console.error('Error emptying queue:', error);
+        throw error;
+    }
+}
+
+/**
+ * Add a new job to the queue
+ * @param queue - BullMQ Queue instance
+ * @param name - Job name
+ * @param data - Job data
+ * @param opts - Job options
+ * @returns Job instance
+ */
+export async function addJob(queue: Queue, name: string, data: any, opts?: any) {
+    try {
+        const job = await queue.add(name, data, opts);
+        return job;
+    } catch (error) {
+        console.error('Error adding job:', error);
+        throw error;
+    }
+}
+
+/**
+ * Retry all failed jobs
+ * @param queue - BullMQ Queue instance
+ * @returns Success status
+ */
+export async function retryAll(queue: Queue): Promise<boolean> {
+    try {
+        const failedJobs = await queue.getJobs(['failed']);
+        await Promise.all(failedJobs.map(job => job.retry()));
+        return true;
+    } catch (error) {
+        console.error('Error retrying all failed jobs:', error);
+        throw error;
+    }
+}
+
+/**
+ * Promote all delayed jobs
+ * @param queue - BullMQ Queue instance
+ * @returns Success status
+ */
+export async function promoteAll(queue: Queue): Promise<boolean> {
+    try {
+        const delayedJobs = await queue.getJobs(['delayed']);
+        await Promise.all(delayedJobs.map(job => job.promote()));
+        return true;
+    } catch (error) {
+        console.error('Error promoting all delayed jobs:', error);
+        throw error;
+    }
+}
+
 /**
  * Clean up queue cache (call when needed)
+ * @param queue - BullMQ Queue instance
  */
 export function clearQueueCache() {
     queueCache.clear();

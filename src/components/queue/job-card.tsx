@@ -6,7 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { 
@@ -47,13 +59,16 @@ interface JobCardProps {
   status: string;
   onRetry: (jobId: string) => void;
   onRemove: (jobId: string) => void;
+  onPromote?: (jobId: string) => void;
 }
 
-export function JobCard({ job, queueId, status, onRetry, onRemove }: JobCardProps) {
+export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote }: JobCardProps) {
   const [logs, setLogs] = useState<string[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [activeTab, setActiveTab] = useState("data");
   const [isStacktraceOpen, setIsStacktraceOpen] = useState(false);
+  const [isRemoveOpen, setIsRemoveOpen] = useState(false);
+  const [isPromoteOpen, setIsPromoteOpen] = useState(false);
 
   const fetchLogs = async () => {
     if (logs.length > 0) return;
@@ -78,7 +93,15 @@ export function JobCard({ job, queueId, status, onRetry, onRemove }: JobCardProp
 
   const formatTime = (timestamp?: number) => {
     if (!timestamp) return "N/A";
-    return new Date(timestamp).toLocaleString();
+    return new Date(timestamp).toLocaleString('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -131,13 +154,53 @@ export function JobCard({ job, queueId, status, onRetry, onRemove }: JobCardProp
                 Retry
               </Button>
             )}
-            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onRemove(job.id)}>
-              <TrashIcon className="h-4 w-4" />
-            </Button>
+            {status === "delayed" && onPromote && (
+              <AlertDialog open={isPromoteOpen} onOpenChange={setIsPromoteOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    <ArrowClockwiseIcon className="mr-2 h-4 w-4" />
+                    Promote
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Promote Job</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to promote this job? It will be moved to the waiting status and processed as soon as possible.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onPromote(job.id)}>Promote</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <AlertDialog open={isRemoveOpen} onOpenChange={setIsRemoveOpen}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                  <TrashIcon className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove Job</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to remove this job? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onRemove(job.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Remove
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
         
-        {status === "active" && (
+        {typeof job.progress === 'number' && job.progress >= 0 && job.progress <= 100 && (
           <div className="mt-4 space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Progress</span>

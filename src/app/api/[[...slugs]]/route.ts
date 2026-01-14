@@ -4,7 +4,16 @@ import Redis from "ioredis";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getQueueInstance, getJobCounts, getJobs, getJobById, retryJob, removeJob, getJobLogs } from "@/lib/queue-helper";
+import {
+  getQueueInstance, getJobCounts, getJobs, getJobById, retryJob, removeJob, getJobLogs,
+  promoteJob,
+  pauseQueue,
+  resumeQueue,
+  emptyQueue,
+  addJob,
+  retryAll,
+  promoteAll,
+} from "@/lib/queue-helper";
 
 export const app = new Elysia({ prefix: "/api" })
   .get("/", () => {
@@ -505,6 +514,38 @@ export const app = new Elysia({ prefix: "/api" })
       return { success: false, message: error.message || "Failed to retry job" };
     }
   })
+  .post("/queue/:id/job/:jobId/promote", async ({ params: { id, jobId }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    // Fetch the queue from database
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await promoteJob(queue, jobId);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to promote job" };
+    }
+  })
   .get("/queue/:id/job/:jobId/logs", async ({ params: { id, jobId }, request }) => {
     const session = await auth.api.getSession({
       headers: request.headers,
@@ -535,6 +576,116 @@ export const app = new Elysia({ prefix: "/api" })
       return { success: true, data: logs };
     } catch (error: any) {
       return { success: false, message: error.message || "Failed to fetch job logs" };
+    }
+  })
+  .post("/queue/:id/pause", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new Error("Unauthorized");
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: { id, userId: session.user.id },
+      include: { redisConfig: true },
+    });
+    if (!queueConfig) throw new Error("Queue not found");
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await pauseQueue(queue);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to pause queue" };
+    }
+  })
+  .post("/queue/:id/resume", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new Error("Unauthorized");
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: { id, userId: session.user.id },
+      include: { redisConfig: true },
+    });
+    if (!queueConfig) throw new Error("Queue not found");
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await resumeQueue(queue);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to resume queue" };
+    }
+  })
+  .post("/queue/:id/empty", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new Error("Unauthorized");
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: { id, userId: session.user.id },
+      include: { redisConfig: true },
+    });
+    if (!queueConfig) throw new Error("Queue not found");
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await emptyQueue(queue);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to empty queue" };
+    }
+  })
+  .post("/queue/:id/add", async ({ params: { id }, request, body }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new Error("Unauthorized");
+
+    const { name, data, opts } = body as { name: string; data: any; opts?: any };
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: { id, userId: session.user.id },
+      include: { redisConfig: true },
+    });
+    if (!queueConfig) throw new Error("Queue not found");
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await addJob(queue, name, data, opts);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to add job" };
+    }
+  })
+  .post("/queue/:id/retry-all", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new Error("Unauthorized");
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: { id, userId: session.user.id },
+      include: { redisConfig: true },
+    });
+    if (!queueConfig) throw new Error("Queue not found");
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await retryAll(queue);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to retry all jobs" };
+    }
+  })
+  .post("/queue/:id/promote-all", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) throw new Error("Unauthorized");
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: { id, userId: session.user.id },
+      include: { redisConfig: true },
+    });
+    if (!queueConfig) throw new Error("Queue not found");
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await promoteAll(queue);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to promote all jobs" };
     }
   })
   .delete("/queue/:id/job/:jobId", async ({ params: { id, jobId }, request }) => {
