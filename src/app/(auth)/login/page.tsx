@@ -14,6 +14,8 @@ import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { XCircleIcon } from "@phosphor-icons/react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,17 +29,18 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
-    try {
-      await authClient.signIn.email({
-        email,
-        password,
-      });
-      router.push("/dashboard");
-    } catch (err) {
-      setError("Invalid email or password");
-    } finally {
-      setIsLoading(false);
-    }
+    await authClient.signIn.email({
+      email,
+      password,
+    }, {
+      onSuccess: () => {
+        router.push("/dashboard");
+      },
+      onError: (ctx) => {
+        setError(ctx.error.message || "Invalid email or password");
+        setIsLoading(false);
+      }
+    });
   };
 
   return (
@@ -77,7 +80,12 @@ export default function LoginPage() {
                   required
                 />
               </div>
-              {error && <div className="text-sm text-red-500">{error}</div>}
+              {error && (
+                <Alert variant="destructive">
+                  <XCircleIcon className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import Redis from "ioredis";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { encrypt, decrypt } from "@/lib/crypto";
 
 export const app = new Elysia({ prefix: "/api" })
   .get("/", () => {
@@ -39,7 +40,7 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    return await prisma.redisConfig.findMany({
+    const configs = await prisma.redisConfig.findMany({
       where: {
         userId: session.user.id,
       },
@@ -47,14 +48,21 @@ export const app = new Elysia({ prefix: "/api" })
         createdAt: "desc",
       },
     });
+
+    return configs.map(config => ({
+      ...config,
+      password: config.password ? "__ENCRYPTED__" : null
+    }));
   })
   .post("/redis/test", async ({ body }) => {
-    const { host, port, password, db } = body;
+    const { host, port, username, password, db, tls } = body;
     const redis = new Redis({
       host,
       port,
+      username: username || undefined,
       password: password || undefined,
       db,
+      tls: tls ? {} : undefined,
       connectTimeout: 5000,
       retryStrategy: () => null, // Don't retry
     });
@@ -70,8 +78,10 @@ export const app = new Elysia({ prefix: "/api" })
     body: t.Object({
       host: t.String(),
       port: t.Number(),
+      username: t.Optional(t.String()),
       password: t.Optional(t.String()),
       db: t.Number(),
+      tls: t.Optional(t.Boolean()),
     }),
   })
   .post("/redis/config", async ({ body, request }) => {
@@ -83,32 +93,17 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const { name, host, port, password, db } = body;
-
-    // Test connection first
-    const redis = new Redis({
-      host,
-      port,
-      password: password || undefined,
-      db,
-      connectTimeout: 5000,
-      retryStrategy: () => null,
-    });
-
-    try {
-      await redis.ping();
-      await redis.quit();
-    } catch (error: any) {
-      throw new Error(`Connection failed: ${error.message}`);
-    }
+    const { name, host, port, username, password, db, tls } = body;
 
     const config = await prisma.redisConfig.create({
       data: {
         name,
         host,
         port,
-        password: password || null,
+        username: username || null,
+        password: password ? encrypt(password) : null,
         db,
+        tls: !!tls,
         userId: session.user.id,
       },
     });
@@ -119,8 +114,10 @@ export const app = new Elysia({ prefix: "/api" })
       name: t.String({ minLength: 1 }),
       host: t.String({ minLength: 1 }),
       port: t.Number(),
+      username: t.Optional(t.String()),
       password: t.Optional(t.String()),
       db: t.Number(),
+      tls: t.Optional(t.Boolean()),
     }),
   })
   .patch("/redis/config/:id", async ({ params: { id }, body, request }) => {
@@ -132,20 +129,31 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const { name, host, port, password, db } = body;
+    const { name, host, port, username, password, db, tls } = body;
+
+    const dataToUpdate: any = {
+      name,
+      host,
+      port,
+      db,
+      tls,
+      username: username === undefined ? undefined : (username || null),
+    };
+
+    if (password !== undefined) {
+      if (password === "__ENCRYPTED__") {
+        // Don't update password if it's the placeholder
+      } else {
+        dataToUpdate.password = password ? encrypt(password) : null;
+      }
+    }
 
     const config = await prisma.redisConfig.update({
       where: {
         id,
         userId: session.user.id,
       },
-      data: {
-        name,
-        host,
-        port,
-        password: password === undefined ? undefined : (password || null),
-        db,
-      },
+      data: dataToUpdate,
     });
 
     return { success: true, data: config };
@@ -154,8 +162,10 @@ export const app = new Elysia({ prefix: "/api" })
       name: t.Optional(t.String({ minLength: 1 })),
       host: t.Optional(t.String({ minLength: 1 })),
       port: t.Optional(t.Number()),
+      username: t.Optional(t.String()),
       password: t.Optional(t.String()),
       db: t.Optional(t.Number()),
+      tls: t.Optional(t.Boolean()),
     }),
   })
   .delete("/redis/config/:id", async ({ params: { id }, request }) => {
@@ -199,8 +209,10 @@ export const app = new Elysia({ prefix: "/api" })
     const redis = new Redis({
       host: config.host,
       port: config.port,
-      password: config.password || undefined,
+      username: config.username || undefined,
+      password: config.password ? decrypt(config.password) : undefined,
       db: config.db,
+      tls: config.tls ? {} : undefined,
       connectTimeout: 2000,
       retryStrategy: () => null,
     });

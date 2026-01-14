@@ -69,8 +69,10 @@ model RedisConfig {
   name      String
   host      String
   port      Int      @default(6379)
+  username  String?
   password  String?
   db        Int      @default(0)
+  tls       Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   userId    String

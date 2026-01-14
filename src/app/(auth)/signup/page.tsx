@@ -14,6 +14,8 @@ import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { XCircleIcon } from "@phosphor-icons/react";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -28,18 +30,19 @@ export default function SignupPage() {
     setError("");
     setIsLoading(true);
 
-    try {
-      await authClient.signUp.email({
-        email,
-        password,
-        name,
-      });
-      router.push("/dashboard");
-    } catch (err) {
-      setError("Failed to create account. Email may already be in use.");
-    } finally {
-      setIsLoading(false);
-    }
+    await authClient.signUp.email({
+      email,
+      password,
+      name,
+    }, {
+      onSuccess: () => {
+        router.push("/dashboard");
+      },
+      onError: (ctx) => {
+        setError(ctx.error.message || "Failed to create account");
+        setIsLoading(false);
+      }
+    });
   };
 
   return (
@@ -89,7 +92,12 @@ export default function SignupPage() {
                   required
                 />
               </div>
-              {error && <div className="text-sm text-red-500">{error}</div>}
+              {error && (
+                <Alert variant="destructive">
+                  <XCircleIcon className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Creating account..." : "Sign Up"}
               </Button>
