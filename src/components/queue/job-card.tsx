@@ -222,10 +222,6 @@ export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote }: 
                 <CodeIcon className="mr-2 h-4 w-4" />
                 Data
               </TabsTrigger>
-              <TabsTrigger value="options" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-md rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary px-4">
-                <GearIcon className="mr-2 h-4 w-4" />
-                Options
-              </TabsTrigger>
               <TabsTrigger value="logs" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-md rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary px-4">
                 <ListBulletsIcon className="mr-2 h-4 w-4" />
                 Logs
@@ -233,6 +229,10 @@ export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote }: 
               <TabsTrigger value="error" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-md rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary px-4 disabled:opacity-50" disabled={!job.failedReason}>
                 <WarningCircleIcon className="mr-2 h-4 w-4" />
                 Error
+              </TabsTrigger>
+              <TabsTrigger value="options" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-t-md rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary px-4">
+                <GearIcon className="mr-2 h-4 w-4" />
+                Options
               </TabsTrigger>
             </TabsList>
           </div>
