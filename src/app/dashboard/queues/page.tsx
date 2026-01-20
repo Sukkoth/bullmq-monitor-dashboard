@@ -208,6 +208,9 @@ export default function QueuesPage() {
 
       if (result.success) {
         fetchQueues();
+        // Notify other components (like sidebar) that queues have changed
+        window.dispatchEvent(new CustomEvent("queues-changed"));
+        
         if (!isEdit) {
           setIsAddDialogOpen(false);
         } else {
@@ -232,6 +235,9 @@ export default function QueuesPage() {
       const result = await res.json();
       if (result.success) {
         fetchQueues();
+        // Notify other components (like sidebar) that queues have changed
+        window.dispatchEvent(new CustomEvent("queues-changed"));
+        
         setIsDeleteDialogOpen(false);
         setQueueToDelete(null);
       }
