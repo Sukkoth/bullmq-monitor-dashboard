@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { TrashIcon, PlusIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, PencilSimpleIcon, XIcon, ClockIcon } from "@phosphor-icons/react";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import {
@@ -36,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { QueueCard } from "@/components/queue/queue-card";
 
 interface RedisConfig {
   id: string;
@@ -79,6 +80,9 @@ const POLLING_OPTIONS = [
 
 export default function QueuesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redisConfigIdFilter = searchParams.get("redisConfigId");
+  
   const [queues, setQueues] = useState<Queue[]>([]);
   const [redisConfigs, setRedisConfigs] = useState<RedisConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -269,9 +273,22 @@ export default function QueuesPage() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Queues</h2>
-          <p className="text-sm text-muted-foreground">
-            {queues.length} {queues.length === 1 ? "queue" : "queues"} configured
-          </p>
+          <div className="flex items-center gap-2">
+            {redisConfigIdFilter && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 text-xs"
+                onClick={() => router.push("/dashboard/queues")}
+              >
+                <XIcon className="mr-1 h-3 w-3" />
+                Clear Filter
+              </Button>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {queues.length} {queues.length === 1 ? "queue" : "queues"} configured
+            </p>
+          </div>
         </div>
 
         {isLoading && queues.length === 0 ? (
@@ -297,77 +314,24 @@ export default function QueuesPage() {
           </Card>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {queues.map((queue) => {
-              const tags = JSON.parse(queue.tags || "[]");
-              return (
-                <Card key={queue.id} className="group overflow-hidden transition-all hover:shadow-md cursor-pointer" onClick={() => router.push(`/dashboard/queues/${queue.id}`)}>
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div className="grid gap-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg font-bold">{queue.displayName}</CardTitle>
-                      </div>
-                      <CardDescription className="font-mono text-xs">
-                        {queue.name}
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingQueue(queue);
-                          setIsEditDialogOpen(true);
-                          setSaveResult(null);
-                        }}
-                      >
-                        <PencilSimpleIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQueueToDelete(queue);
-                          setIsDeleteDialogOpen(true);
-                        }}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {queue.note && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{queue.note}</p>
-                    )}
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="font-semibold text-muted-foreground">Redis:</span>
-                      <span className="font-mono">{queue.redisConfig.name}</span>
-                    </div>
-                    {tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {tags.map((tag: string, idx: number) => (
-                          <Badge key={idx} variant="secondary" className="text-[10px]">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <div className="flex items-center gap-1.5">
-                        <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Polling:</span>
-                      </div>
-                      <Badge variant={queue.pollingDuration > 0 ? "default" : "outline"} className="text-[10px]">
-                        {getPollingLabel(queue.pollingDuration)}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {queues
+              .filter(q => !redisConfigIdFilter || q.redisConfigId === redisConfigIdFilter)
+              .map((queue) => (
+              <QueueCard
+                key={queue.id}
+                queue={queue}
+                onEdit={(q) => {
+                  setEditingQueue(q);
+                  setIsEditDialogOpen(true);
+                  setSaveResult(null);
+                }}
+                onDelete={(q) => {
+                  setQueueToDelete(q);
+                  setIsDeleteDialogOpen(true);
+                }}
+                getPollingLabel={getPollingLabel}
+              />
+            ))}
           </div>
         )}
       </div>

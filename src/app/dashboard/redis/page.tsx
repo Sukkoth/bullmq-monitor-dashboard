@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TrashIcon, PlusIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, PencilSimpleIcon, ArrowCounterClockwiseIcon, PlayIcon, PauseIcon, ClockIcon } from "@phosphor-icons/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import {
@@ -59,6 +60,7 @@ const redisConfigSchema = z.object({
 type RedisConfigForm = z.infer<typeof redisConfigSchema>;
 
 export default function RedisPage() {
+  const router = useRouter();
   const [configs, setConfigs] = useState<RedisConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
@@ -372,7 +374,11 @@ export default function RedisPage() {
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {configs.map((config) => (
-              <Card key={config.id} className="group overflow-hidden transition-all hover:shadow-md">
+              <Card 
+                key={config.id} 
+                className="group overflow-hidden transition-all hover:shadow-md cursor-pointer"
+                onClick={() => router.push(`/dashboard/queues?redisConfigId=${config.id}`)}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <div className="grid gap-1">
                     <div className="flex items-center gap-2">
