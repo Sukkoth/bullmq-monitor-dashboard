@@ -13,6 +13,8 @@ import {
   addJob,
   retryAll,
   promoteAll,
+  duplicateJob,
+  updateJobData,
 } from "@/lib/queue-helper";
 
 export const app = new Elysia({ prefix: "/api" })
@@ -719,6 +721,72 @@ export const app = new Elysia({ prefix: "/api" })
     } catch (error: any) {
       return { success: false, message: error.message || "Failed to remove job" };
     }
+  })
+  .post("/queue/:id/job/:jobId/duplicate", async ({ params: { id, jobId }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      const newJob = await duplicateJob(queue, jobId);
+      return { success: true, data: { id: newJob.id }, message: "Job duplicated successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to duplicate job" };
+    }
+  })
+  .patch("/queue/:id/job/:jobId/data", async ({ params: { id, jobId }, body, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const queueConfig = await prisma.queue.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    if (!queueConfig) {
+      throw new Error("Queue not found");
+    }
+
+    try {
+      const queue = await getQueueInstance(queueConfig.name, queueConfig.redisConfig);
+      await updateJobData(queue, jobId, body.data);
+      return { success: true, message: "Job data updated successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to update job data" };
+    }
+  }, {
+    body: t.Object({
+      data: t.Any(),
+    }),
   })
   .get("/redis/status/:id", async ({ params: { id }, request }) => {
     const session = await auth.api.getSession({
