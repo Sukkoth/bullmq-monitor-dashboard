@@ -566,42 +566,25 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Job Status Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-        {JOB_STATUSES.map((status) => {
-          const Icon = status.icon;
-          const count = jobCounts[status.key as keyof JobCounts];
 
-          return (
-            <Card
-              key={status.key}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                activeTab === status.key ? "ring-2 ring-primary" : ""
-              }`}
-              onClick={() => setActiveTab(status.key)}
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {status.label}
-                </CardTitle>
-                <Icon className={`h-4 w-4 ${status.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{count}</div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
 
-      {/* Jobs Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-9">
-          {JOB_STATUSES.map((status) => (
-            <TabsTrigger key={status.key} value={status.key} className="text-xs">
-              {status.label}
-            </TabsTrigger>
-          ))}
+        <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1 bg-transparent p-0">
+          {JOB_STATUSES.map((status) => {
+            const count = jobCounts[status.key as keyof JobCounts];
+            return (
+              <TabsTrigger 
+                key={status.key} 
+                value={status.key} 
+                className="data-[state=active]:bg-muted data-[state=active]:shadow-none border border-transparent data-[state=active]:border-border px-3 py-1.5 h-auto text-xs"
+              >
+                {status.label}
+                <span className="ml-1.5 text-[10px] text-muted-foreground bg-muted-foreground/10 px-1.5 rounded-full font-mono">
+                  {count}
+                </span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         {JOB_STATUSES.map((status) => (
