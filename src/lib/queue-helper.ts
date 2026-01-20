@@ -384,6 +384,58 @@ export async function promoteAll(queue: Queue): Promise<boolean> {
 }
 
 /**
+ * Duplicate a job (create a new one with same name, data, and opts)
+ * @param queue - BullMQ Queue instance
+ * @param jobId - Original job ID
+ * @returns New Job instance
+ */
+export async function duplicateJob(queue: Queue, jobId: string) {
+    try {
+        const originalJob = await queue.getJob(jobId);
+        if (!originalJob) {
+            throw new Error('Original job not found');
+        }
+
+        // Create a new job with same name, data and options
+        // Note: we don't copy jobId as it must be unique
+        const { name, data, opts } = originalJob;
+
+        // Remove job-specific options that shouldn't be duplicated directly
+        const cleanOpts = { ...opts };
+        delete cleanOpts.jobId;
+        delete cleanOpts.repeat; // Don't duplicate repeat configuration to avoid doubling up schedules
+
+        const newJob = await queue.add(name, data, cleanOpts);
+        return newJob;
+    } catch (error) {
+        console.error(`Error duplicating job ${jobId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Update job data
+ * @param queue - BullMQ Queue instance
+ * @param jobId - Job ID
+ * @param newData - New data object
+ * @returns Success status
+ */
+export async function updateJobData(queue: Queue, jobId: string, newData: any): Promise<boolean> {
+    try {
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            throw new Error('Job not found');
+        }
+
+        await job.updateData(newData);
+        return true;
+    } catch (error) {
+        console.error(`Error updating job data for ${jobId}:`, error);
+        throw error;
+    }
+}
+
+/**
  * Clean up queue cache (call when needed)
  * @param queue - BullMQ Queue instance
  */

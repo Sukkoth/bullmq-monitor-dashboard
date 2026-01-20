@@ -34,7 +34,8 @@ import {
   XCircleIcon,
   CopyIcon,
   CaretDownIcon,
-  CaretRightIcon
+  CaretRightIcon,
+  PencilSimpleIcon
 } from "@phosphor-icons/react";
 
 interface Job {
@@ -60,15 +61,20 @@ interface JobCardProps {
   onRetry: (jobId: string) => void;
   onRemove: (jobId: string) => void;
   onPromote?: (jobId: string) => void;
+  onDuplicate: (jobId: string) => void;
+  onEditData: (jobId: string, newData: any) => void;
 }
 
-export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote }: JobCardProps) {
+export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote, onDuplicate, onEditData }: JobCardProps) {
   const [logs, setLogs] = useState<string[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [activeTab, setActiveTab] = useState("data");
   const [isStacktraceOpen, setIsStacktraceOpen] = useState(false);
   const [isRemoveOpen, setIsRemoveOpen] = useState(false);
   const [isPromoteOpen, setIsPromoteOpen] = useState(false);
+  const [isEditDataOpen, setIsEditDataOpen] = useState(false);
+  const [editedData, setEditedData] = useState(JSON.stringify(job.data, null, 2));
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchLogs = async () => {
     if (logs.length > 0) return;
@@ -176,6 +182,10 @@ export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote }: 
                 </AlertDialogContent>
               </AlertDialog>
             )}
+            <Button size="sm" variant="outline" onClick={() => onDuplicate(job.id)} title="Duplicate Job">
+              <CopyIcon className="mr-2 h-4 w-4" />
+              Duplicate
+            </Button>
             <AlertDialog open={isRemoveOpen} onOpenChange={setIsRemoveOpen}>
               <AlertDialogTrigger asChild>
                 <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10">
@@ -239,7 +249,58 @@ export function JobCard({ job, queueId, status, onRetry, onRemove, onPromote }: 
 
           <div className="p-4 bg-muted/5 min-h-[200px]">
             <TabsContent value="data" className="mt-0 space-y-2">
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                {status !== "active" && status !== "completed" && (
+                  <AlertDialog open={isEditDataOpen} onOpenChange={(open) => {
+                    setIsEditDataOpen(open);
+                    if (open) {
+                      setEditedData(JSON.stringify(job.data, null, 2));
+                      setEditError(null);
+                    }
+                  }}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="xs" className="text-primary hover:text-primary hover:bg-primary/10">
+                        <PencilSimpleIcon className="mr-1 h-3 w-3" />
+                        Edit Data
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="max-w-2xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Edit Job Data</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Modify the job data below. Ensure it is valid JSON.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="py-4">
+                        <Textarea 
+                          className="font-mono text-xs min-h-[300px] resize-none"
+                          value={editedData}
+                          onChange={(e) => {
+                            setEditedData(e.target.value);
+                            setEditError(null);
+                          }}
+                        />
+                        {editError && (
+                          <p className="mt-2 text-xs text-red-500">{editError}</p>
+                        )}
+                      </div>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={(e) => {
+                          try {
+                            const parsed = JSON.parse(editedData);
+                            onEditData(job.id, parsed);
+                          } catch (err: any) {
+                            e.preventDefault();
+                            setEditError(`Invalid JSON: ${err.message}`);
+                          }
+                        }}>
+                          Save Changes
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
                 <Button variant="ghost" size="xs" onClick={() => copyToClipboard(JSON.stringify(job.data, null, 2))}>
                   <CopyIcon className="mr-1 h-3 w-3" />
                   Copy

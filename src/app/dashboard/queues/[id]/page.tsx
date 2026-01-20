@@ -279,6 +279,45 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const handleDuplicateJob = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/queue/${id}/job/${jobId}/duplicate`, {
+        method: "POST",
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Job duplicated successfully", { description: `New job ID: ${result.data.id}` });
+        // Background refresh to sync counts and list
+        fetchJobs(activeTab, false);
+        fetchJobCounts();
+      } else {
+        throw new Error(result.message || "Failed to duplicate job");
+      }
+    } catch (error: any) {
+      toast.error("Failed to duplicate job", { description: error.message });
+    }
+  };
+
+  const handleEditJobData = async (jobId: string, newData: any) => {
+    try {
+      const res = await fetch(`/api/queue/${id}/job/${jobId}/data`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: newData }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Job data updated successfully");
+        // Update local state if the job is in the current list
+        setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, data: newData } : j)));
+      } else {
+        throw new Error(result.message || "Failed to update job data");
+      }
+    } catch (error: any) {
+      toast.error("Failed to update job data", { description: error.message });
+    }
+  };
+
   const handlePauseResumeQueue = async () => {
     if (!queue) return;
     const action = jobCounts.isPaused ? "resume" : "pause";
@@ -638,6 +677,8 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
                         onRetry={handleRetryJob}
                         onRemove={handleRemoveJob}
                         onPromote={handlePromoteJob}
+                        onDuplicate={handleDuplicateJob}
+                        onEditData={handleEditJobData}
                       />
                     ))}
                   </div>
