@@ -37,6 +37,80 @@ export const app = new Elysia({ prefix: "/api" })
       },
     ];
   })
+  .get("/stats/dashboard", async ({ request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const queues = await prisma.queue.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      include: {
+        redisConfig: true,
+      },
+    });
+
+    const redisCount = await prisma.redisConfig.count({
+      where: { userId: session.user.id },
+    });
+
+    const totals = {
+      active: 0,
+      waiting: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+      paused: 0,
+    };
+
+    const queueDetails = [];
+
+    for (const q of queues) {
+      try {
+        const queueInstance = await getQueueInstance(q.name, q.redisConfig);
+        const counts = await getJobCounts(queueInstance);
+
+        totals.active += counts.active;
+        totals.waiting += counts.waiting;
+        totals.completed += counts.completed;
+        totals.failed += counts.failed;
+        totals.delayed += counts.delayed;
+        totals.paused += counts.paused;
+
+        queueDetails.push({
+          id: q.id,
+          name: q.name,
+          displayName: q.displayName,
+          counts,
+        });
+      } catch (err) {
+        console.error(`Error fetching stats for queue ${q.name}:`, err);
+        // Skip queues that fail to connect for the global dashboard
+      }
+    }
+
+    // Sort queues by failure count to show problematic ones first
+    const topFailedQueues = [...queueDetails]
+      .sort((a, b) => b.counts.failed - a.counts.failed)
+      .slice(0, 5)
+      .filter(q => q.counts.failed > 0);
+
+    return {
+      success: true,
+      data: {
+        totals,
+        queueCount: queues.length,
+        redisCount,
+        topFailedQueues,
+        allQueues: queueDetails,
+      }
+    };
+  })
   .post("/queue", ({ body }) => body, {
     body: t.Object({
       name: t.String({ minLength: 2, maxLength: 100 }),
