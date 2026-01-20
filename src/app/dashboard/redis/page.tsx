@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TrashIcon, PlusIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, PencilSimpleIcon, ArrowCounterClockwiseIcon, PlayIcon, PauseIcon, ClockIcon } from "@phosphor-icons/react";
+import { TrashIcon, PlusIcon, CheckCircleIcon, XCircleIcon, SpinnerIcon, PencilSimpleIcon, ArrowCounterClockwiseIcon, PlayIcon, PauseIcon, ClockIcon, QueueIcon } from "@phosphor-icons/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
@@ -377,7 +377,11 @@ export default function RedisPage() {
               <Card 
                 key={config.id} 
                 className="group overflow-hidden transition-all hover:shadow-md cursor-pointer"
-                onClick={() => router.push(`/dashboard/queues?redisConfigId=${config.id}`)}
+                onClick={() => {
+                  setEditingConfig(config);
+                  setIsEditDialogOpen(true);
+                  setTestResult(null);
+                }}
               >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <div className="grid gap-1">
@@ -398,7 +402,21 @@ export default function RedisPage() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() => {
+                      title="View Queues"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboard/queues?redisConfigId=${config.id}`);
+                      }}
+                    >
+                      <QueueIcon className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      title="Edit Connection"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setEditingConfig(config);
                         setIsEditDialogOpen(true);
                         setTestResult(null);
@@ -410,7 +428,9 @@ export default function RedisPage() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onClick={() => {
+                      title="Delete Connection"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setConfigToDelete(config);
                         setIsDeleteDialogOpen(true);
                       }}
