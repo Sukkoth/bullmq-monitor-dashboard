@@ -28,6 +28,10 @@ import {
   TrashIcon,
   PlayIcon,
   DotsThreeIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  CaretDoubleLeftIcon,
+  CaretDoubleRightIcon,
 } from "@phosphor-icons/react";
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -147,6 +151,10 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const [pollingInterval, setPollingInterval] = useState<number>(0);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
@@ -195,12 +203,15 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [id, queue]);
 
-  const fetchJobs = useCallback(async (status: string, showLoading = false) => {
+  const fetchJobs = useCallback(async (status: string, showLoading = false, page = currentPage) => {
     if (!queue) return;
     
     if (showLoading) setIsLoadingJobs(true);
     try {
-      const res = await fetch(`/api/queue/${id}/jobs/${status}?start=0&end=50`);
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize - 1;
+      
+      const res = await fetch(`/api/queue/${id}/jobs/${status}?start=${start}&end=${end}`);
       const result = await res.json();
       if (result.success) {
         setJobs(result.data);
@@ -213,7 +224,7 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       if (showLoading) setIsLoadingJobs(false);
     }
-  }, [id, queue]);
+  }, [id, queue, pageSize, currentPage]);
 
   const handleRetryJob = async (jobId: string) => {
     try {
@@ -447,11 +458,31 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
   }, [queue, fetchJobCounts]);
 
   useEffect(() => {
-    if (queue) {
-      // Only show loading on first load or tab change, not background refreshes
-      fetchJobs(activeTab, true);
+    if (!queue) return;
+
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      fetchJobs(activeTab, true, 1);
+      return;
     }
-  }, [activeTab, queue, fetchJobs]); // Added fetchJobs to dependency array
+
+    // If we're changing tabs, always reset page to 1
+    // We'll let the currentPage useEffect handle the actual fetch if page changes
+    // If page is already 1, we fetch manually
+    if (currentPage === 1) {
+      fetchJobs(activeTab, true, 1);
+    } else {
+      setCurrentPage(1);
+    }
+  }, [activeTab, queue]);
+
+  useEffect(() => {
+    if (!queue || isInitialLoad) return;
+    
+    // This handles page changes. 
+    // If it was triggered by a tab change (resetting to 1), it still fetches the correct tab data.
+    fetchJobs(activeTab, true, currentPage);
+  }, [currentPage]);
 
   // Auto-refresh based on polling duration
   useEffect(() => {
@@ -642,6 +673,76 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Pagination Controls */}
+                {jobs.length > 0 && (
+                  <div className="mb-6 flex items-center justify-between border-b pb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Rows per page:</span>
+                        <Select
+                          value={pageSize.toString()}
+                          onValueChange={(v) => {
+                            setPageSize(Number(v));
+                            setCurrentPage(1);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-[70px] text-xs">
+                            <SelectValue placeholder={pageSize.toString()} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Page {currentPage} of {Math.max(1, Math.ceil(jobCounts[activeTab as keyof JobCounts] as number / pageSize))}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1 || isLoadingJobs}
+                      >
+                        <CaretDoubleLeftIcon className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1 || isLoadingJobs}
+                      >
+                        <CaretLeftIcon className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                        disabled={currentPage >= Math.ceil(jobCounts[activeTab as keyof JobCounts] as number / pageSize) || isLoadingJobs}
+                      >
+                        <CaretRightIcon className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCurrentPage(Math.ceil(jobCounts[activeTab as keyof JobCounts] as number / pageSize))}
+                        disabled={currentPage >= Math.ceil(jobCounts[activeTab as keyof JobCounts] as number / pageSize) || isLoadingJobs}
+                      >
+                        <CaretDoubleRightIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {isLoadingJobs ? (
                   <div className="flex items-center justify-center py-12">
                     <SpinnerIcon className="h-8 w-8 animate-spin text-muted-foreground" />
