@@ -47,12 +47,18 @@ model user {
   email         String    @unique(map: "sqlite_autoindex_user_2")
   emailVerified Int
   image         String?
+  role          String    @default("user")
+  banned        Boolean   @default(false)
   createdAt     DateTime
   updatedAt     DateTime
   account       account[]
   session       session[]
-  redisConfigs  RedisConfig[]
-  queues        Queue[]
+  redisConfigs  RedisConfig[] @relation("OwnedConfigs")
+  queues        Queue[]      @relation("OwnedQueues")
+  
+  // Authorized (Shared)
+  authorizedRedisConfigs RedisConfig[] @relation("AuthorizedConfigs")
+  authorizedQueues       Queue[]      @relation("AuthorizedQueues")
 }
 
 model verification {
@@ -77,8 +83,11 @@ model RedisConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   userId    String
-  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      user     @relation("OwnedConfigs", fields: [userId], references: [id], onDelete: Cascade)
   queues    Queue[]
+
+  // Authorized Users (Shared with)
+  authorizedUsers user[] @relation("AuthorizedConfigs")
 
   @@index([userId])
 }
@@ -93,9 +102,12 @@ model Queue {
   redisConfigId   String
   redisConfig     RedisConfig @relation(fields: [redisConfigId], references: [id], onDelete: Cascade)
   userId          String
-  user            user        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            user        @relation("OwnedQueues", fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+
+  // Authorized Users (Shared with)
+  authorizedUsers user[] @relation("AuthorizedQueues")
 
   @@index([userId])
   @@index([redisConfigId])

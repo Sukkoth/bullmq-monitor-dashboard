@@ -46,17 +46,23 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
+    const isShowingAll = session.user.role === "admin";
+    const whereClause = isShowingAll ? {} : {
+      OR: [
+        { userId: session.user.id },
+        { authorizedUsers: { some: { id: session.user.id } } }
+      ]
+    };
+
     const queues = await prisma.queue.findMany({
-      where: {
-        userId: session.user.id,
-      },
+      where: whereClause,
       include: {
         redisConfig: true,
       },
     });
 
     const redisCount = await prisma.redisConfig.count({
-      where: { userId: session.user.id },
+      where: whereClause,
     });
 
     const totals = {
@@ -126,10 +132,16 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
+    const isShowingAll = session.user.role === "admin";
+    const whereClause = isShowingAll ? {} : {
+      OR: [
+        { userId: session.user.id },
+        { authorizedUsers: { some: { id: session.user.id } } }
+      ]
+    };
+
     const configs = await prisma.redisConfig.findMany({
-      where: {
-        userId: session.user.id,
-      },
+      where: whereClause,
       orderBy: {
         createdAt: "desc",
       },
@@ -234,15 +246,26 @@ export const app = new Elysia({ prefix: "/api" })
       }
     }
 
-    const config = await prisma.redisConfig.update({
+    const config = await prisma.redisConfig.findFirst({
       where: {
         id,
-        userId: session.user.id,
-      },
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
+      }
+    });
+
+    if (!config) throw new Error("Connection not found");
+
+    const updatedConfig = await prisma.redisConfig.update({
+      where: { id },
       data: dataToUpdate,
     });
 
-    return { success: true, data: config };
+    return { success: true, data: updatedConfig };
   }, {
     body: t.Object({
       name: t.Optional(t.String({ minLength: 1 })),
@@ -263,11 +286,22 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    await prisma.redisConfig.delete({
+    const config = await prisma.redisConfig.findFirst({
       where: {
         id,
-        userId: session.user.id,
-      },
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
+      }
+    });
+
+    if (!config) throw new Error("Connection not found");
+
+    await prisma.redisConfig.delete({
+      where: { id },
     });
 
     return { success: true };
@@ -281,10 +315,16 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
+    const isShowingAll = session.user.role === "admin";
+    const whereClause = isShowingAll ? {} : {
+      OR: [
+        { userId: session.user.id },
+        { authorizedUsers: { some: { id: session.user.id } } }
+      ]
+    };
+
     const queues = await prisma.queue.findMany({
-      where: {
-        userId: session.user.id,
-      },
+      where: whereClause,
       include: {
         redisConfig: true,
       },
@@ -307,10 +347,15 @@ export const app = new Elysia({ prefix: "/api" })
     const { name, displayName, note, tags, pollingDuration, redisConfigId } = body;
 
     // Verify the redis config belongs to the user
-    const redisConfig = await prisma.redisConfig.findUnique({
+    const redisConfig = await prisma.redisConfig.findFirst({
       where: {
         id: redisConfigId,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
     });
 
@@ -360,7 +405,7 @@ export const app = new Elysia({ prefix: "/api" })
       const redisConfig = await prisma.redisConfig.findUnique({
         where: {
           id: redisConfigId,
-          userId: session.user.id,
+          ...(session.user.role === "admin" ? {} : { userId: session.user.id })
         },
       });
 
@@ -377,18 +422,29 @@ export const app = new Elysia({ prefix: "/api" })
     if (pollingDuration !== undefined) dataToUpdate.pollingDuration = pollingDuration;
     if (redisConfigId !== undefined) dataToUpdate.redisConfigId = redisConfigId;
 
-    const queue = await prisma.queue.update({
+    const queue = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
-      },
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
+      }
+    });
+
+    if (!queue) throw new Error("Queue not found");
+
+    const updatedQueue = await prisma.queue.update({
+      where: { id },
       data: dataToUpdate,
       include: {
         redisConfig: true,
       },
     });
 
-    return { success: true, data: queue };
+    return { success: true, data: updatedQueue };
   }, {
     body: t.Object({
       name: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
@@ -408,11 +464,22 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    await prisma.queue.delete({
+    const queue = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
-      },
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
+      }
+    });
+
+    if (!queue) throw new Error("Queue not found");
+
+    await prisma.queue.delete({
+      where: { id },
     });
 
     return { success: true };
@@ -427,10 +494,15 @@ export const app = new Elysia({ prefix: "/api" })
     }
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -462,10 +534,15 @@ export const app = new Elysia({ prefix: "/api" })
     const end = parseInt(query.end as string || "50");
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -514,10 +591,15 @@ export const app = new Elysia({ prefix: "/api" })
     }
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -568,10 +650,15 @@ export const app = new Elysia({ prefix: "/api" })
     }
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -600,10 +687,15 @@ export const app = new Elysia({ prefix: "/api" })
     }
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -632,10 +724,15 @@ export const app = new Elysia({ prefix: "/api" })
     }
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -659,7 +756,7 @@ export const app = new Elysia({ prefix: "/api" })
     if (!session) throw new Error("Unauthorized");
 
     const queueConfig = await prisma.queue.findUnique({
-      where: { id, userId: session.user.id },
+      where: { id, ...(session.user.role === "admin" ? {} : { userId: session.user.id }) },
       include: { redisConfig: true },
     });
     if (!queueConfig) throw new Error("Queue not found");
@@ -677,7 +774,7 @@ export const app = new Elysia({ prefix: "/api" })
     if (!session) throw new Error("Unauthorized");
 
     const queueConfig = await prisma.queue.findUnique({
-      where: { id, userId: session.user.id },
+      where: { id, ...(session.user.role === "admin" ? {} : { userId: session.user.id }) },
       include: { redisConfig: true },
     });
     if (!queueConfig) throw new Error("Queue not found");
@@ -695,7 +792,7 @@ export const app = new Elysia({ prefix: "/api" })
     if (!session) throw new Error("Unauthorized");
 
     const queueConfig = await prisma.queue.findUnique({
-      where: { id, userId: session.user.id },
+      where: { id, ...(session.user.role === "admin" ? {} : { userId: session.user.id }) },
       include: { redisConfig: true },
     });
     if (!queueConfig) throw new Error("Queue not found");
@@ -715,7 +812,7 @@ export const app = new Elysia({ prefix: "/api" })
     const { name, data, opts } = body as { name: string; data: any; opts?: any };
 
     const queueConfig = await prisma.queue.findUnique({
-      where: { id, userId: session.user.id },
+      where: { id, ...(session.user.role === "admin" ? {} : { userId: session.user.id }) },
       include: { redisConfig: true },
     });
     if (!queueConfig) throw new Error("Queue not found");
@@ -733,7 +830,7 @@ export const app = new Elysia({ prefix: "/api" })
     if (!session) throw new Error("Unauthorized");
 
     const queueConfig = await prisma.queue.findUnique({
-      where: { id, userId: session.user.id },
+      where: { id, ...(session.user.role === "admin" ? {} : { userId: session.user.id }) },
       include: { redisConfig: true },
     });
     if (!queueConfig) throw new Error("Queue not found");
@@ -750,8 +847,15 @@ export const app = new Elysia({ prefix: "/api" })
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) throw new Error("Unauthorized");
 
-    const queueConfig = await prisma.queue.findUnique({
-      where: { id, userId: session.user.id },
+    const queueConfig = await prisma.queue.findFirst({
+      where: {
+        id, ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
+      },
       include: { redisConfig: true },
     });
     if (!queueConfig) throw new Error("Queue not found");
@@ -774,10 +878,15 @@ export const app = new Elysia({ prefix: "/api" })
     }
 
     // Fetch the queue from database
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -805,10 +914,15 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -836,10 +950,15 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const queueConfig = await prisma.queue.findUnique({
+    const queueConfig = await prisma.queue.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
       include: {
         redisConfig: true,
@@ -871,10 +990,15 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const config = await prisma.redisConfig.findUnique({
+    const config = await prisma.redisConfig.findFirst({
       where: {
         id,
-        userId: session.user.id,
+        ...(session.user.role === "admin" ? {} : {
+          OR: [
+            { userId: session.user.id },
+            { authorizedUsers: { some: { id: session.user.id } } }
+          ]
+        })
       },
     });
 
@@ -900,9 +1024,218 @@ export const app = new Elysia({ prefix: "/api" })
     } catch (error) {
       return { success: true, status: "offline" };
     }
+  })
+  .get("/users", async ({ request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session || session.user.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    const users = await prisma.user.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return { success: true, data: users };
+  })
+  .patch("/users/:id/role", async ({ params: { id }, body, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session || session.user.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    try {
+      await prisma.user.update({
+        where: { id },
+        data: { role: body.role },
+      });
+      return { success: true, message: "User role updated successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to update role" };
+    }
+  }, {
+    body: t.Object({
+      role: t.String(),
+    }),
+  })
+  .delete("/users/:id", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session || session.user.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    try {
+      if (session.user.id === id) {
+        throw new Error("You cannot delete yourself");
+      }
+      await prisma.user.delete({
+        where: { id },
+      });
+      return { success: true, message: "User deleted successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to delete user" };
+    }
+  })
+  .post("/users", async ({ body, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session || session.user.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    const { name, email, password, role } = body;
+
+    try {
+      const user = await auth.api.signUpEmail({
+        body: {
+          email,
+          password,
+          name,
+        },
+        headers: request.headers,
+      });
+
+      if (role && role !== "user") {
+        await prisma.user.update({
+          where: { email },
+          data: { role },
+        });
+      }
+
+      return { success: true, data: user, message: "User created successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to create user" };
+    }
+  }, {
+    body: t.Object({
+      name: t.String(),
+      email: t.String(),
+      password: t.String(),
+      role: t.Optional(t.String()),
+    }),
+  })
+  .get("/users/:id/access", async ({ params: { id }, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session || session.user.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    try {
+      const [queues, configs, targetUser] = await Promise.all([
+        prisma.queue.findMany({
+          include: { authorizedUsers: { where: { id } } }
+        }),
+        prisma.redisConfig.findMany({
+          include: { authorizedUsers: { where: { id } } }
+        }),
+        prisma.user.findUnique({
+          where: { id },
+          include: {
+            queues: { select: { id: true } },
+            redisConfigs: { select: { id: true } }
+          }
+        })
+      ]);
+
+      if (!targetUser) throw new Error("User not found");
+
+      const ownedQueueIds = new Set(targetUser.queues.map(q => q.id));
+      const ownedConfigIds = new Set(targetUser.redisConfigs.map(c => c.id));
+
+      return {
+        success: true,
+        data: {
+          queues: queues.map(q => ({
+            id: q.id,
+            name: q.name,
+            displayName: q.displayName,
+            isAuthorized: q.authorizedUsers.length > 0 || ownedQueueIds.has(q.id),
+            isOwner: ownedQueueIds.has(q.id)
+          })),
+          redisConfigs: configs.map(c => ({
+            id: c.id,
+            name: c.name,
+            host: c.host,
+            isAuthorized: c.authorizedUsers.length > 0 || ownedConfigIds.has(c.id),
+            isOwner: ownedConfigIds.has(c.id)
+          }))
+        }
+      };
+    } catch (error: any) {
+      console.error("Error fetching user access:", error);
+      return { success: false, message: error.message || "Failed to fetch access data" };
+    }
+  })
+  .post("/users/:id/access", async ({ params: { id }, body, request }) => {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session || session.user.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    const { queueIds, redisConfigIds } = body;
+
+    try {
+      // Get currently owned items to avoid removing ownership while updating authorization
+      const targetUser = await prisma.user.findUnique({
+        where: { id },
+        include: {
+          queues: { select: { id: true } },
+          redisConfigs: { select: { id: true } }
+        }
+      });
+
+      if (!targetUser) throw new Error("User not found");
+
+      const ownedQueueIds = new Set(targetUser.queues.map(q => q.id));
+      const ownedConfigIds = new Set(targetUser.redisConfigs.map(c => c.id));
+
+      // Filter out owned items from the authorized list as they are implicitly authorized
+      const filteredQueueIds = queueIds.filter(qid => !ownedQueueIds.has(qid));
+      const filteredConfigIds = redisConfigIds.filter(cid => !ownedConfigIds.has(cid));
+
+      await prisma.user.update({
+        where: { id },
+        data: {
+          authorizedQueues: {
+            set: filteredQueueIds.map(qid => ({ id: qid }))
+          },
+          authorizedRedisConfigs: {
+            set: filteredConfigIds.map(cid => ({ id: cid }))
+          }
+        }
+      });
+
+      return { success: true, message: "Access updated successfully" };
+    } catch (error: any) {
+      return { success: false, message: error.message || "Failed to update access" };
+    }
+  }, {
+    body: t.Object({
+      queueIds: t.Array(t.String()),
+      redisConfigIds: t.Array(t.String()),
+    }),
   });
 
 export const GET = app.fetch;
 export const POST = app.fetch;
 export const PATCH = app.fetch;
 export const DELETE = app.fetch;
+export const PUT = app.fetch;
