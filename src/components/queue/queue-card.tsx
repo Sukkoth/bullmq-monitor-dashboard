@@ -21,7 +21,6 @@ interface Queue {
   displayName: string;
   note: string | null;
   tags: string;
-  pollingDuration: number;
   redisConfigId: string;
   redisConfig: RedisConfig;
   createdAt: string;
@@ -32,7 +31,6 @@ interface QueueCardProps {
   queue: Queue;
   onEdit: (queue: Queue) => void;
   onDelete: (queue: Queue) => void;
-  getPollingLabel: (duration: number) => string;
 }
 
 interface JobCounts {
@@ -45,7 +43,7 @@ interface JobCounts {
   isPaused: boolean;
 }
 
-export function QueueCard({ queue, onEdit, onDelete, getPollingLabel }: QueueCardProps) {
+export function QueueCard({ queue, onEdit, onDelete }: QueueCardProps) {
   const router = useRouter();
   const [stats, setStats] = useState<JobCounts | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -79,17 +77,14 @@ export function QueueCard({ queue, onEdit, onDelete, getPollingLabel }: QueueCar
 
     fetchStats();
 
-    // Poll for stats if polling is enabled
-    let intervalId: NodeJS.Timeout;
-    if (queue.pollingDuration > 0) {
-      intervalId = setInterval(fetchStats, queue.pollingDuration);
-    }
+    // Poll for stats with default 5s interval
+    const intervalId = setInterval(fetchStats, 5000);
 
     return () => {
       isMounted = false;
-      if (intervalId) clearInterval(intervalId);
+      clearInterval(intervalId);
     };
-  }, [queue.id, queue.pollingDuration]);
+  }, [queue.id]);
 
   const tags = JSON.parse(queue.tags || "[]");
 
@@ -197,16 +192,6 @@ export function QueueCard({ queue, onEdit, onDelete, getPollingLabel }: QueueCar
               )}
             </div>
           )}
-
-          <div className="flex items-center justify-between pt-2 border-t mt-2">
-            <div className="flex items-center gap-1.5">
-              <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Polling:</span>
-            </div>
-            <Badge variant={queue.pollingDuration > 0 ? "default" : "outline"} className="text-[10px] px-1.5 py-0 h-5">
-              {getPollingLabel(queue.pollingDuration)}
-            </Badge>
-          </div>
         </div>
       </CardContent>
     </Card>

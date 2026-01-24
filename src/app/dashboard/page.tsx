@@ -61,6 +61,8 @@ export default function DashboardPage() {
       const result = await res.json();
       if (result.success) {
         setStats(result.data);
+      } else {
+        console.error("API returned error:", result);
       }
     } catch (error) {
       console.error("Failed to fetch dashboard stats:", error);
@@ -68,7 +70,7 @@ export default function DashboardPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchStats(true);
@@ -108,6 +110,145 @@ export default function DashboardPage() {
   }
 
   if (!stats) return null;
+
+  // Empty state - no Redis connections or queues
+  if (stats.redisCount === 0 || stats.queueCount === 0) {
+    return (
+      <div className="flex flex-1 flex-col gap-8 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Welcome to BullMQ Monitor</h1>
+            <p className="text-muted-foreground">Let's get you started with monitoring your queues</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-12 gap-8">
+          <div className="rounded-full bg-primary/10 p-6">
+            <QueueIcon className="h-16 w-16 text-primary" />
+          </div>
+
+          <div className="text-center max-w-2xl space-y-2">
+            <h2 className="text-2xl font-bold">Get Started in 2 Simple Steps</h2>
+            <p className="text-muted-foreground">
+              Connect to your Redis instance and add your BullMQ queues to start monitoring job processing in real-time.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 w-full max-w-4xl">
+            {/* Step 1: Add Redis Connection */}
+            <Card className="relative overflow-hidden border-2 hover:border-primary/50 transition-all">
+              <div className="absolute top-4 right-4">
+                <Badge className="bg-primary/10 text-primary border-primary/20 font-bold">STEP 1</Badge>
+              </div>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <DatabaseIcon className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-xl">Add Redis Connection</CardTitle>
+                </div>
+                <CardDescription className="text-sm">
+                  Connect to your Redis instance where BullMQ stores queue data. You can add multiple Redis connections if you have queues across different instances.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p className="flex items-start gap-2">
+                    <span className="text-primary font-bold">→</span>
+                    <span>Provide connection details (host, port, credentials)</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="text-primary font-bold">→</span>
+                    <span>Test the connection to ensure it works</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="text-primary font-bold">→</span>
+                    <span>Save and monitor connection status</span>
+                  </p>
+                </div>
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  onClick={() => router.push("/dashboard/redis")}
+                >
+                  <DatabaseIcon className="mr-2 h-4 w-4" />
+                  {stats.redisCount === 0 ? "Add Your First Connection" : "Manage Connections"}
+                </Button>
+                {stats.redisCount > 0 && (
+                  <p className="text-xs text-center text-emerald-600 font-medium">
+                    ✓ {stats.redisCount} connection{stats.redisCount !== 1 ? 's' : ''} configured
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Step 2: Add Queue */}
+            <Card className={`relative overflow-hidden border-2 transition-all ${stats.redisCount === 0 ? 'opacity-50' : 'hover:border-primary/50'}`}>
+              <div className="absolute top-4 right-4">
+                <Badge className="bg-primary/10 text-primary border-primary/20 font-bold">STEP 2</Badge>
+              </div>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <QueueIcon className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-xl">Add Queue</CardTitle>
+                </div>
+                <CardDescription className="text-sm">
+                  Register your BullMQ queues to monitor job processing, track failures, and manage job lifecycles across your application.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p className="flex items-start gap-2">
+                    <span className="text-primary font-bold">→</span>
+                    <span>Select a Redis connection</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="text-primary font-bold">→</span>
+                    <span>Enter your queue name (as defined in your code)</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="text-primary font-bold">→</span>
+                    <span>Start monitoring jobs in real-time</span>
+                  </p>
+                </div>
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  onClick={() => router.push("/dashboard/queues")}
+                  disabled={stats.redisCount === 0}
+                >
+                  <QueueIcon className="mr-2 h-4 w-4" />
+                  {stats.queueCount === 0 ? "Add Your First Queue" : "Manage Queues"}
+                </Button>
+                {stats.redisCount === 0 && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    Add a Redis connection first
+                  </p>
+                )}
+                {stats.queueCount > 0 && (
+                  <p className="text-xs text-center text-emerald-600 font-medium">
+                    ✓ {stats.queueCount} queue{stats.queueCount !== 1 ? 's' : ''} configured
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-4 p-4 bg-muted/30 rounded-lg border border-dashed max-w-2xl">
+            <p className="text-sm text-center text-muted-foreground">
+              <strong className="text-foreground">Need help?</strong> Check out the{" "}
+              <a href="https://docs.bullmq.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                BullMQ documentation
+              </a>{" "}
+              to learn more about setting up queues in your application.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const statCards = [
     { label: "Active Jobs", value: stats.totals.active, icon: ArrowsClockwiseIcon, color: "text-green-500", bgColor: "bg-green-500/10" },

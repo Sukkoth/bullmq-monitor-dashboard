@@ -344,7 +344,7 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const { name, displayName, note, tags, pollingDuration, redisConfigId } = body;
+    const { name, displayName, note, tags, redisConfigId } = body;
 
     // Verify the redis config belongs to the user
     const redisConfig = await prisma.redisConfig.findFirst({
@@ -369,7 +369,6 @@ export const app = new Elysia({ prefix: "/api" })
         displayName,
         note: note || null,
         tags: JSON.stringify(tags || []),
-        pollingDuration: pollingDuration || 0,
         redisConfigId,
         userId: session.user.id,
       },
@@ -385,7 +384,6 @@ export const app = new Elysia({ prefix: "/api" })
       displayName: t.String({ minLength: 1, maxLength: 100 }),
       note: t.Optional(t.String({ maxLength: 500 })),
       tags: t.Optional(t.Array(t.String())),
-      pollingDuration: t.Optional(t.Number({ minimum: 0 })),
       redisConfigId: t.String(),
     }),
   })
@@ -398,7 +396,7 @@ export const app = new Elysia({ prefix: "/api" })
       throw new Error("Unauthorized");
     }
 
-    const { name, displayName, note, tags, pollingDuration, redisConfigId } = body;
+    const { name, displayName, note, tags, redisConfigId } = body;
 
     // If redisConfigId is being updated, verify it belongs to the user
     if (redisConfigId) {
@@ -419,7 +417,6 @@ export const app = new Elysia({ prefix: "/api" })
     if (displayName !== undefined) dataToUpdate.displayName = displayName;
     if (note !== undefined) dataToUpdate.note = note || null;
     if (tags !== undefined) dataToUpdate.tags = JSON.stringify(tags);
-    if (pollingDuration !== undefined) dataToUpdate.pollingDuration = pollingDuration;
     if (redisConfigId !== undefined) dataToUpdate.redisConfigId = redisConfigId;
 
     const queue = await prisma.queue.findFirst({
@@ -451,7 +448,6 @@ export const app = new Elysia({ prefix: "/api" })
       displayName: t.Optional(t.String({ minLength: 1, maxLength: 100 })),
       note: t.Optional(t.String({ maxLength: 500 })),
       tags: t.Optional(t.Array(t.String())),
-      pollingDuration: t.Optional(t.Number({ minimum: 0 })),
       redisConfigId: t.Optional(t.String()),
     }),
   })

@@ -98,7 +98,6 @@ model Queue {
   displayName     String      // Human-readable display name
   note            String?     // Optional description
   tags            String      @default("[]") // JSON array of tags
-  pollingDuration Int         @default(0) // Polling interval in ms (0 = off)
   redisConfigId   String
   redisConfig     RedisConfig @relation(fields: [redisConfigId], references: [id], onDelete: Cascade)
   userId          String

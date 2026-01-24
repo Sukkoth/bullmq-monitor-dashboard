@@ -51,7 +51,6 @@ interface Queue {
   displayName: string;
   note: string | null;
   tags: string;
-  pollingDuration: number;
   redisConfigId: string;
   redisConfig: RedisConfig;
   createdAt: string;
@@ -63,20 +62,10 @@ const queueSchema = z.object({
   displayName: z.string().min(1, "Display name is required").max(100, "Display name must be less than 100 characters"),
   note: z.string().max(500, "Note must be less than 500 characters").optional(),
   tags: z.array(z.string()).optional(),
-  pollingDuration: z.number().min(0, "Polling duration must be positive").optional(),
   redisConfigId: z.string().min(1, "Redis configuration is required"),
 });
 
 type QueueForm = z.infer<typeof queueSchema>;
-
-const POLLING_OPTIONS = [
-  { value: "0", label: "Off" },
-  { value: "5000", label: "5s" },
-  { value: "10000", label: "10s" },
-  { value: "30000", label: "30s" },
-  { value: "60000", label: "1m" },
-  { value: "300000", label: "5m" },
-];
 
 export default function QueuesPage() {
   const router = useRouter();
@@ -102,7 +91,6 @@ export default function QueuesPage() {
       displayName: "",
       note: "",
       tags: [] as string[],
-      pollingDuration: 0,
       redisConfigId: "",
     } as QueueForm,
     onSubmit: async ({ value }) => {
@@ -116,7 +104,6 @@ export default function QueuesPage() {
       displayName: "",
       note: "",
       tags: [] as string[],
-      pollingDuration: 0,
       redisConfigId: "",
     } as QueueForm,
     onSubmit: async ({ value }) => {
@@ -130,7 +117,6 @@ export default function QueuesPage() {
       editForm.setFieldValue("displayName", editingQueue.displayName);
       editForm.setFieldValue("note", editingQueue.note || "");
       editForm.setFieldValue("tags", JSON.parse(editingQueue.tags || "[]"));
-      editForm.setFieldValue("pollingDuration", editingQueue.pollingDuration);
       editForm.setFieldValue("redisConfigId", editingQueue.redisConfigId);
     }
   }, [editingQueue, editForm]);
@@ -261,11 +247,6 @@ export default function QueuesPage() {
     form.setFieldValue("tags", currentTags.filter(tag => tag !== tagToRemove));
   };
 
-  const getPollingLabel = (duration: number) => {
-    const option = POLLING_OPTIONS.find(opt => opt.value === duration.toString());
-    return option ? option.label : "Off";
-  };
-
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -335,7 +316,6 @@ export default function QueuesPage() {
                   setQueueToDelete(q);
                   setIsDeleteDialogOpen(true);
                 }}
-                getPollingLabel={getPollingLabel}
               />
             ))}
           </div>
@@ -517,40 +497,6 @@ export default function QueuesPage() {
                       ))}
                     </div>
                   )}
-                </div>
-              )}
-            />
-
-            <addForm.Field
-              name="pollingDuration"
-              validators={{
-                onChange: ({ value }) => {
-                  const result = queueSchema.shape.pollingDuration.safeParse(value);
-                  return result.success ? undefined : result.error.issues[0].message;
-                },
-              }}
-              children={(field) => (
-                <div className="grid gap-2">
-                  <Label htmlFor={field.name}>Polling Duration</Label>
-                  <Select
-                    value={field.state.value?.toString() || "0"}
-                    onValueChange={(v) => field.handleChange(Number(v))}
-                  >
-                    <SelectTrigger id={field.name}>
-                      <SelectValue placeholder="Select polling interval" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POLLING_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-muted-foreground">How often to refresh queue data</p>
-                  {field.state.meta.errors.length > 0 ? (
-                    <em className="text-xs text-destructive">{field.state.meta.errors[0] as string}</em>
-                  ) : null}
                 </div>
               )}
             />
@@ -750,40 +696,6 @@ export default function QueuesPage() {
                       ))}
                     </div>
                   )}
-                </div>
-              )}
-            />
-
-            <editForm.Field
-              name="pollingDuration"
-              validators={{
-                onChange: ({ value }) => {
-                  const result = queueSchema.shape.pollingDuration.safeParse(value);
-                  return result.success ? undefined : result.error.issues[0].message;
-                },
-              }}
-              children={(field) => (
-                <div className="grid gap-2">
-                  <Label htmlFor={`edit-${field.name}`}>Polling Duration</Label>
-                  <Select
-                    value={field.state.value?.toString() || "0"}
-                    onValueChange={(v) => field.handleChange(Number(v))}
-                  >
-                    <SelectTrigger id={`edit-${field.name}`}>
-                      <SelectValue placeholder="Select polling interval" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POLLING_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-muted-foreground">How often to refresh queue data</p>
-                  {field.state.meta.errors.length > 0 ? (
-                    <em className="text-xs text-destructive">{field.state.meta.errors[0] as string}</em>
-                  ) : null}
                 </div>
               )}
             />

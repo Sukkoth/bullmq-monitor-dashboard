@@ -80,7 +80,6 @@ interface Queue {
   displayName: string;
   note: string | null;
   tags: string;
-  pollingDuration: number;
   redisConfigId: string;
   redisConfig: RedisConfig;
   createdAt: string;
@@ -155,7 +154,7 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const [pollingInterval, setPollingInterval] = useState<number>(0);
+  const [pollingInterval, setPollingInterval] = useState<number>(5000);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [isPauseOpen, setIsPauseOpen] = useState(false);
@@ -175,10 +174,6 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
       const foundQueue = data.find((q: Queue) => q.id === id);
       if (foundQueue) {
         setQueue(foundQueue);
-        // Set initial polling interval from queue config if not already set
-        if (pollingInterval === 0 && foundQueue.pollingDuration > 0) {
-          setPollingInterval(foundQueue.pollingDuration);
-        }
       } else {
         router.push("/dashboard/queues");
       }
@@ -187,7 +182,7 @@ export default function QueueDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setIsLoading(false);
     }
-  }, [id, router, pollingInterval]);
+  }, [id, router]);
 
   const fetchJobCounts = useCallback(async () => {
     if (!queue) return;
